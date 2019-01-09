@@ -2,6 +2,7 @@
 #include <chrono>
 #include <utility>
 #include <iostream>
+#include <string>
 
 #include <queue>
 #include <mutex>
@@ -86,19 +87,21 @@ constexpr int setpointFlow = 100;
 constexpr int setpointSize1 = 10000;
 constexpr int setpointSize2 = 50000;
 
-auto reg = makeRegulator(buffSize,diffFlow,setpointSize1,setpointFlow,0.5);
-
 using namespace std;
 
-int main()
+int main(int argc,const char* argv[])
 {
-  std::thread regThread([](){
+  float k = (argc == 2)? std::stof(argv[1]) : 1;
+  auto reg = makeRegulator(buffSize,diffFlow,setpointSize1,setpointFlow,k);
+  std::thread regThread([&reg](){
+			  int x =0;
 			  while(true)
 			    {
 			      buffSize = tsq.size();
 			      reg.update();
-			      cerr<<diffFlow<<':'<<tsq.size()<<endl;
-			      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+			      cerr<<x++<<' '<<diffFlow<<' '<<tsq.size()<<endl;
+			      if(x >= 10000) exit(1);
+			      std::this_thread::sleep_for(std::chrono::milliseconds(1));
 			    }
 			});
   std::thread insThread([](){
@@ -109,7 +112,8 @@ int main()
 			      local_diffFlow = diffFlow.load();
 			      for(int i=0; i< setpointFlow + local_diffFlow/2; ++i)
 				tsq.push(++x);
-			      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+			      std::this_thread::yield();
+			      //			      std::this_thread::sleep_for(std::chrono::milliseconds(10));
 			    }
 			});
     std::thread remThread([](){
@@ -123,10 +127,11 @@ int main()
 				  if(tsq.wait_and_pop(x))
 				    cout<<x<<endl;
 				}
-			      std::this_thread::sleep_for(std::chrono::milliseconds(20));
+			      std::this_thread::yield();
+			      //std::this_thread::sleep_for(std::chrono::milliseconds(20));
 			    }
 			});
-    std::thread chBufSetpoint([]()
+    std::thread chBufSetpoint([&reg]()
 			      {
 				int x = false;
 				while(true)
