@@ -15,7 +15,7 @@ class threadsafe_queue
 private:
   mutable std::mutex mut;
   std::queue<T> data_queue;
-  size_t size_limit = 1000000;
+  std::atomic<size_t> size_limit { 1000000 };
 public:
   threadsafe_queue()
   {}
@@ -23,7 +23,7 @@ public:
   bool push(T new_value)
   {
     std::lock_guard<std::mutex> lk(mut);
-    if ( full() )
+    if ( m_full() )
       return false;
     data_queue.push(std::move(new_value));
     return true;
@@ -31,7 +31,7 @@ public:
   bool wait_and_pop(T& value)
   {
     std::lock_guard<std::mutex> lk(mut);
-    if( empty() )
+    if( m_empty() )
       return false;
     value=std::move(data_queue.front());
     data_queue.pop();
@@ -40,15 +40,22 @@ public:
   size_t size()
   {
     std::lock_guard<std::mutex> lk(mut);
+    return m_size();
+  }
+  void set_size_limit(size_t limit)
+  {
+    size_limit.store(limit);
+  }
+private:
+  size_t m_size() const
+  {
     return data_queue.size();
   }
-  void set_size_limit(size_t limit){ size_limit = limit; }
-private:
-  bool full() const
+  bool m_full() const
   {
-    return data_queue.size() >= size_limit;
+    return m_size() >= size_limit;
   }
-  bool empty() const
+  bool m_empty() const
   {
     return data_queue.empty();
   }
@@ -90,13 +97,13 @@ Regulator<RegT,CtrlT,RegSPT,CtrlSPT> makeRegulator(RegT& reg,CtrlT& ctrl,RegSPT 
   return Regulator<RegT,CtrlT,RegSPT,CtrlSPT>(reg,ctrl,reg0,ctrl0,k);
 }
 
-std::atomic<int> diffFlow;
-std::atomic<int> buffSize;
-std::atomic<bool> finFlag;
+std::atomic<int> diffFlow {0};
+std::atomic<int> buffSize {0};
+std::atomic<bool> finFlag {0};
 threadsafe_queue<int> tsq;
 
-std::atomic<int> inFlow;
-std::atomic<int> outFlow;
+std::atomic<int> inFlow {0};
+std::atomic<int> outFlow {0};
 
 constexpr int setpointFlow = 200;
 constexpr int setpointSize1 = 10000;
