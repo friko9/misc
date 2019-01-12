@@ -99,13 +99,13 @@ Regulator<RegT,CtrlT,RegSPT,CtrlSPT> makeRegulator(RegT& reg,CtrlT& ctrl,RegSPT 
 
 std::atomic<int> diffFlow {0};
 std::atomic<int> buffSize {0};
-std::atomic<bool> finFlag {0};
+std::atomic<bool> finFlag {false};
 threadsafe_queue<int> tsq;
 
 std::atomic<int> inFlow {0};
 std::atomic<int> outFlow {0};
 
-constexpr int setpointFlow = 200;
+constexpr int setpointFlow = 1500;
 constexpr int setpointSize1 = 10000;
 constexpr int setpointSize2 = 50000;
 
@@ -115,7 +115,7 @@ int main(int argc,const char* argv[])
 {
   float k = (argc == 2)? std::stof(argv[1]) : 0.0f;
   auto reg = makeRegulator(buffSize,diffFlow,setpointSize1,setpointFlow,k);
-  finFlag = false;
+
   std::thread regThread([&reg](){
 			  while(!finFlag)
 			    {
@@ -130,16 +130,15 @@ int main(int argc,const char* argv[])
 			  while(!finFlag)
 			    {
 			      int success = 0;
-			      int flow = setpointFlow + diffFlow.load()/2;
-			      flow = (flow >=0 )? flow : 0;
-			      for(int i=0; i< flow; ++i)
+			      int setpoint = setpointFlow + diffFlow.load();
+			      while(success < setpoint )
 				{
 				  if( !tsq.push(x) ) break;
 				  x = cin.get();
 				  ++success;
 				}
-			      inFlow += success;
-			      //std::this_thread::yield();
+			      inFlow.fetch_add(success);
+			      std::this_thread::yield();
 			      //std::this_thread::sleep_for(std::chrono::milliseconds(10));
 			    }
 			});
@@ -148,16 +147,15 @@ int main(int argc,const char* argv[])
 			  while(!finFlag)
 			    {
 			      int success = 0;
-			      int flow = setpointFlow - diffFlow.load()/2;
-			      flow = (flow >=0 )? flow : 0;
-			      for(int i=0; i< flow; ++i)
+			      int setpoint = setpointFlow;
+			      while(success < setpoint )
 				{
 				  if( !tsq.wait_and_pop(x) ) break;
 				  cout<<x;
 				  ++success;
 				}
-			      outFlow += success;
-			      //std::this_thread::yield();
+			      outFlow.fetch_add(success);
+			      std::this_thread::yield();
 			      //std::this_thread::sleep_for(std::chrono::milliseconds(20));
 			    }
 			});
