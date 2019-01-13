@@ -52,8 +52,8 @@ public:
   void set_size_limit(size_t limit)
   {
     size_limit.store(limit);
-    size_low.store(limit*0.2);
-    size_high.store(limit*0.8);
+    size_low.store(limit*0.3);
+    size_high.store(limit*0.7);
   }
   bool empty()
   {
@@ -140,20 +140,21 @@ int main(int argc,const char* argv[])
   			      int x = false;
 				while(!finFlag)
 				  {
+				    auto now = std::chrono::steady_clock::now();
 				    if( x = !x )
-					tsq.set_size_limit(setpointSize1*1.2);
+					tsq.set_size_limit(setpointSize1+10000);
 				    else
-					tsq.set_size_limit(setpointSize2*1.2);
-				    std::this_thread::sleep_for(std::chrono::seconds(1));
+					tsq.set_size_limit(setpointSize2+20000);
+				    std::this_thread::sleep_until(now+std::chrono::seconds(1));
 				  }
   			    });
   int x = 0;
-  auto start = std::chrono::high_resolution_clock::now();
+  auto start = std::chrono::steady_clock::now();
   cerr<<"time buffSize inFlow outFlow\n";
   long counter = 0;
   while( ++x < 10000)
     {
-      auto now = std::chrono::high_resolution_clock::now();
+      auto now = std::chrono::steady_clock::now();
       auto time = std::chrono::duration_cast<std::chrono::milliseconds>(now-start);
       cerr<<time.count()<<' '<<tsq.size()<<' '<<inFlow<<' '<<outFlow<<'\n';
       counter+= outFlow;

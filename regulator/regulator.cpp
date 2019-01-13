@@ -105,7 +105,7 @@ threadsafe_queue<int> tsq;
 std::atomic<int> inFlow {0};
 std::atomic<int> outFlow {0};
 
-constexpr int setpointFlow = 1500;
+constexpr int setpointFlow = 2000;
 constexpr int setpointSize1 = 10000;
 constexpr int setpointSize2 = 50000;
 
@@ -119,9 +119,10 @@ int main(int argc,const char* argv[])
   std::thread regThread([&reg](){
 			  while(!finFlag)
 			    {
+			      auto now = std::chrono::steady_clock::now();
 			      buffSize = tsq.size();
 			      reg.update();
-			      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+			      std::this_thread::sleep_until(now+std::chrono::milliseconds(1));
 			    }
 			});
   std::thread insThread([](){
@@ -131,7 +132,7 @@ int main(int argc,const char* argv[])
 			    {
 			      int success = 0;
 			      int setpoint = setpointFlow + diffFlow.load();
-			      while(success < setpoint )
+			      for(int i = inFlow.load();i < setpoint; ++i )
 				{
 				  if( !tsq.push(x) ) break;
 				  x = cin.get();
@@ -139,7 +140,6 @@ int main(int argc,const char* argv[])
 				}
 			      inFlow.fetch_add(success);
 			      std::this_thread::yield();
-			      //std::this_thread::sleep_for(std::chrono::milliseconds(10));
 			    }
 			});
   std::thread remThread([](){
@@ -147,16 +147,13 @@ int main(int argc,const char* argv[])
 			  while(!finFlag)
 			    {
 			      int success = 0;
-			      int setpoint = setpointFlow;
-			      while(success < setpoint )
+			      while(success < 100 )
 				{
 				  if( !tsq.wait_and_pop(x) ) break;
 				  cout<<x;
 				  ++success;
 				}
 			      outFlow.fetch_add(success);
-			      std::this_thread::yield();
-			      //std::this_thread::sleep_for(std::chrono::milliseconds(20));
 			    }
 			});
   std::thread chBufSetpoint([&reg,k]()
@@ -164,27 +161,28 @@ int main(int argc,const char* argv[])
   			      int x = false;
 				while(!finFlag)
 				  {
+				    auto now = std::chrono::steady_clock::now();
 				    if( x = !x )
 				      {
-					tsq.set_size_limit(setpointSize1*1.2);
+					tsq.set_size_limit(setpointSize1+10000);
 					reg.setpoint(setpointSize1,setpointFlow);
 				      }
 				    else
 				      {
-					tsq.set_size_limit(setpointSize2*1.2);
+					tsq.set_size_limit(setpointSize2+20000);
 					reg.setpoint(setpointSize2,setpointFlow);
 				      }
-				    std::this_thread::sleep_for(std::chrono::seconds(1));
+				    std::this_thread::sleep_until(now+std::chrono::seconds(1));
 				  }
   			    });
 
   int x = 0;
-  auto start = std::chrono::high_resolution_clock::now();
+  auto start = std::chrono::steady_clock::now();
   cerr<<"time buffSize inFlow outFlow\n";
   long counter = 0;
   while( ++x < 10000)
     {
-      auto now = std::chrono::high_resolution_clock::now();
+      auto now = std::chrono::steady_clock::now();
       auto time = std::chrono::duration_cast<std::chrono::milliseconds>(now-start);
       cerr<<time.count()<<' '<<buffSize<<' '<<inFlow<<' '<<outFlow<<'\n';
       counter+= outFlow;
