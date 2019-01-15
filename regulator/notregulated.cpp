@@ -117,16 +117,14 @@ int main(int argc,const char* argv[])
 				  std::this_thread::sleep_for(std::chrono::seconds(1));
 				}
   			    });
-  int x = 0;
-  auto start = std::chrono::high_resolution_clock::now();
+  auto start = std::chrono::steady_clock::now();
   cerr<<"time buffSize inFlow outFlow\n";
-  long counter = 0;
-  while( ++x < 10000)
+  for(unsigned int time_c = 0; time_c < 10000;)
     {
-      auto now = std::chrono::high_resolution_clock::now();
+      auto now = std::chrono::steady_clock::now();
       auto time = std::chrono::duration_cast<std::chrono::milliseconds>(now-start);
-      cerr<<time.count()<<' '<<buffSize<<' '<<inFlow<<' '<<outFlow<<'\n';
-      counter+= outFlow;
+      time_c = time.count();
+      cerr<<time_c<<' '<<buffSize<<' '<<inFlow<<' '<<outFlow<<'\n';
       inFlow = 0;
       outFlow = 0;
       std::this_thread::sleep_until(now + std::chrono::milliseconds(1));

@@ -130,32 +130,38 @@ int main(int argc,const char* argv[])
 			  x = cin.get();
 			  while(!finFlag)
 			    {
-			      int success = 0;
 			      int setpoint = setpointFlow + diffFlow.load();
-			      for(int i = inFlow.load();i < setpoint; ++i )
+			      int flow = inFlow.load();
+			      int push_err = false;
+			      for(int success = 0; !finFlag & !push_err & flow < setpoint; success = 0 )
 				{
-				  if( !tsq.push(x) ) break;
-				  x = cin.get();
-				  ++success;
+				  auto min_delta = std::min(100,setpoint-flow);
+				  for(int i = 0; i < min_delta; ++i )
+				    {
+				      if( push_err = !tsq.push(x) ) break;
+				      x = cin.get();
+				      ++success;
+				    }
+				  flow = inFlow.fetch_add(success) + success;
 				}
-			      inFlow.fetch_add(success);
+			    sadfrog:
 			      std::this_thread::yield();
 			    }
 			});
   std::thread remThread([](){
-			  int x=0;
-			  while(!finFlag)
-			    {
-			      int success = 0;
-			      while(success < 100 )
-				{
-				  if( !tsq.wait_and_pop(x) ) break;
-				  cout<<x;
-				  ++success;
-				}
-			      outFlow.fetch_add(success);
-			    }
-			});
+  			  int x=0;
+  			  while(!finFlag)
+  			    {
+  			      int success = 0;
+  			      while(success < 100 )
+  				{
+  				  if( !tsq.wait_and_pop(x) ) break;
+  				  cout<<x;
+  				  ++success;
+  				}
+  			      outFlow.fetch_add(success);
+  			    }
+  			});
   std::thread chBufSetpoint([&reg,k]()
   			    {
   			      int x = false;
@@ -176,16 +182,14 @@ int main(int argc,const char* argv[])
 				  }
   			    });
 
-  int x = 0;
   auto start = std::chrono::steady_clock::now();
   cerr<<"time buffSize inFlow outFlow\n";
-  long counter = 0;
-  while( ++x < 10000)
+  for(unsigned int time_c = 0; time_c < 10000;)
     {
       auto now = std::chrono::steady_clock::now();
       auto time = std::chrono::duration_cast<std::chrono::milliseconds>(now-start);
-      cerr<<time.count()<<' '<<buffSize<<' '<<inFlow<<' '<<outFlow<<'\n';
-      counter+= outFlow;
+      time_c = time.count();
+      cerr<<time_c<<' '<<buffSize<<' '<<inFlow<<' '<<outFlow<<'\n';
       inFlow = 0;
       outFlow = 0;
       std::this_thread::sleep_until(now + std::chrono::milliseconds(1));
