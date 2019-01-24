@@ -63,7 +63,6 @@ private:
 
 threadsafe_queue<int> tsq;
 
-std::atomic<size_t> buffSize {0};
 std::atomic<int> inFlow {0};
 std::atomic<int> outFlow {0};
 std::atomic<bool> finFlag {false};
@@ -87,7 +86,7 @@ int main(int argc,const char* argv[])
 				  ++success;
 				}
 			      inFlow.fetch_add(success);
-			      std::this_thread::yield();
+			      //std::this_thread::yield();
 			    }
 			});
   std::thread remThread([](){
@@ -102,7 +101,7 @@ int main(int argc,const char* argv[])
 				  ++success;
 				}
 			      outFlow.fetch_add(success);
-			      std::this_thread::yield();
+			      //std::this_thread::yield();
 			    }
 			});
   std::thread chBufSetpoint([]()
@@ -124,7 +123,7 @@ int main(int argc,const char* argv[])
       auto now = std::chrono::steady_clock::now();
       auto time = std::chrono::duration_cast<std::chrono::milliseconds>(now-start);
       time_c = time.count();
-      cerr<<time_c<<' '<<buffSize<<' '<<inFlow<<' '<<outFlow<<'\n';
+      cerr<<time_c<<' '<<tsq.size()<<' '<<inFlow<<' '<<outFlow<<'\n';
       inFlow = 0;
       outFlow = 0;
       std::this_thread::sleep_until(now + std::chrono::milliseconds(1));
