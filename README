@@ -1,0 +1,8 @@
+# misc
+Set of concepts - each one compiled separately.
+
++ pikotaro.cpp - check if its possible to create javascript-like comosite objects at compile time - indeed it is.
++ pins.cpp - proof of concept I read about, its possible to create assembler-efficient code with c++ template. Compile to assembler and check for yourself.
++ units.cpp - proof of concept of unit checking at compile-time, but perhaps its better to use std::ratio-like approach.
++ stack_fragment.cpp - Just checked what happens to your local stack if you use compile optimisation.
++ regulator/ - continous P regulator on asynchronous processes. P-negative feddback-regulator regulating the buffer fill level without locking for locking,blocking,and nonblocking processes.

@@ -1,0 +1,9 @@
+*~
+*.png
+*.html
+*.log
+regulator/conditional
+regulator/nonblocking_notregulated
+regulator/notregulated
+regulator/out
+regulator/regulator
