@@ -1,30 +1,56 @@
+/////////////////////////////////////////////////////////////////////////////////////
+// Type conversion is proceded in Graph-Transition fashion	        	   //
+// 										   //
+// Usage:									   //
+// class MyClass : public Transitional<MyClass>					   //
+// {...}									   //
+// template <> struct TTransition<MyClass,DestType>{				   //
+//   DestType transition(MyClass){...}						   //
+// };										   //
+// int main(){									   //
+//   MyClass x;									   //
+//   DestType y = x.to<DestType>()						   //
+// 								        	   //
+// User-defined classes are nodes of the graph.			        	   //
+// 								        	   //
+// template class TTransition<Source,Dest> represents graph transitions 	   //
+// Specialisations of TTransition implement and enable transition       	   //
+// between specific types - quite like adding new pair to map<T1,T2>    	   //
+// 								        	   //
+// template class Transitional<SourceT> is an interface-class	        	   //
+// it implements template method to<DestT>(), and to<Dest>(Args...)     	   //
+// which are used for type conversion.				      		   //
+// 								      		   //
+// To make it work for your just inherit from Transitional:	      		   //
+//   class MyClass : public Transitional<MyClass>		        	   //
+// and create TTransition specialisation:			        	   //
+//     template <> struct TTransition<MyClass,DestType>{	        	   //
+//     DestType transition(MyClass) const {...}			        	   //
+//     or even							        	   //
+//     DestType transition(MyClass,OtherArgs...) const {...}	        	   //
+//   };								        	   //
+// 								        	   //
+// To enable TTransition to access private fields and methods add:      	   //
+//   template<typename,typename>  friend class TTransition;	        	   //
+// to your class definition.							   //
+/////////////////////////////////////////////////////////////////////////////////////
 
-//////////////////////////////////////////////////////////////////////////
-// Type conversion is proceded in Graph-Transition fashion	        //
-// 								        //
-// User-defined classes are nodes of the graph.			        //
-// 								        //
-// template class TTransition<Source,Dest> represents graph transitions //
-// Specialisations of TTransition implement and enable transition       //
-// between specific types - quite like adding new pair to map<T1,T2>    //
-// 								        //
-// template class Transitional<SourceT> is an interface-class	        //
-// it implements template method to<DestT>(), and to<Dest>(Args...)     //
-// which are used for type conversion.				        //
-// 								        //
-// To make it work for your just inherit from Transitional:	        //
-//   class MyClass : public Transitional<MyClass>		        //
-// and create TTransition specialisation:			        //
-//     template <> struct TTransition<MyClass,DestType>{	        //
-//     DestType transition(MyClass) const {...}			        //
-//     or even							        //
-//     DestType transition(MyClass,OtherArgs...) const {...}	        //
-//   };								        //
-// 								        //
-// To enable TTransition to access private fields and methods add:      //
-//   template<typename,typename>  friend class TTransition;	        //
-// to your class definition.					        //
-//////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+// Also enabled the possibility to create cascade object transitions in flow like    //
+// eye-pleasing way using intermediate argument objects				     //
+// 										     //
+// Usage:									     //
+//   class MyClass : public OperatorTransitional<MyClass>			     //
+//   {...};									     //
+// // defining transitions							     //
+// // ...									     //
+//   using _MyOtherClass1 = DestArgT<MyOtherClass,std::tuple<ArgsT...>>;	     //
+//   using _MyOtherClass2 = DestArgT<MyOtherClass,std::tuple<ArgsT...>>;	     //
+//   int main(){								     //
+//   MyClass x;  								     //
+//   MyOtherClass2 y = x >> _MyOtherClass1 { args...} >> _MyOtherClass2 { args... }; //
+//   }										     //
+///////////////////////////////////////////////////////////////////////////////////////
     
 #include <type_traits>
 #include <iostream>
@@ -54,16 +80,33 @@ struct Transitional
   }
 };
 
-template<typename SourceT>
-struct DefaultTransitional : public Transitional<SourceT>
+template <typename T1,typename T2 = void>
+struct DestArgT
 {
-  template<typename DestT, typename ArgT>
-  DestT _(ArgT arg) const
-  { return this->template to<DestT,ArgT>(arg); }
-  
-  template<typename DestT>
-  DestT _() const
-  { return this->template to<DestT>(); }
+  using DestT = T1;
+  using ArgT = T2;
+  ArgT value;
+};
+
+template <typename T1>
+struct DestArgT<T1,void>
+{
+  using DestT = T1;
+  using ArgT = void;
+};
+
+template<typename SourceT>
+struct OperatorTransitional : public Transitional<SourceT>
+{
+  template<typename DAT,
+	   typename std::enable_if_t<!std::is_void<typename DAT::ArgT>::value,bool> = true >
+  typename DAT::DestT operator >> (DAT arg) const
+  { return Transitional<SourceT>::template to<typename DAT::DestT>(arg.value); }
+
+  template<typename DAT,
+	   typename std::enable_if_t<std::is_void<typename DAT::ArgT>::value,bool> = true >
+  typename DAT::DestT operator >> (DAT arg) const
+  { return Transitional<SourceT>::template to<typename DAT::DestT>(); }
 };
 
 class Querry
@@ -77,15 +120,20 @@ public:
   ~Querry() = default;
 };
 
-struct QuerryStart: public DefaultTransitional<QuerryStart>{ };
-struct Select : public Querry,public DefaultTransitional<Select>{ using Querry::Querry;};
-struct From : public Querry,public DefaultTransitional<From>{ using Querry::Querry;};
-struct Where : public Querry,public DefaultTransitional<Where>{ using Querry::Querry;};
+struct QuerryStart: public OperatorTransitional<QuerryStart>{ };
+struct Select : public Querry,public OperatorTransitional<Select>{ using Querry::Querry;};
+struct From : public Querry,public OperatorTransitional<From>{ using Querry::Querry;};
+struct Where : public Querry,public OperatorTransitional<Where>{ using Querry::Querry;};
 struct Done : public Querry
 {
   Done(std::string arg):Querry(arg){}
   void send(){ std::cout<<"sent: "<<getStr()<<std::endl; }
 };
+
+using _Select = DestArgT<Select,const char*>;
+using _From = DestArgT<From,const char*>;
+using _Where = DestArgT<Where,const char*>;
+using _Done = DestArgT<Done>;
 
 template<> struct TTransition<QuerryStart,Select> {
   Select transit(const QuerryStart a,const std::string what) const { return "select " + what; }
@@ -106,9 +154,6 @@ template<> struct TTransition<Where,Done> {
 int main()
 {
   QuerryStart q;
-  q._<Select>("*")
-    ._<From>("table")
-    ._<Where>("id = 1")
-    ._<Done>()
-    .send();
+  auto querry = q >> _Select {"*"}  >> _From {"table"}  >> _Where {"id = 1"}  >> _Done {};
+  querry.send();
 }
