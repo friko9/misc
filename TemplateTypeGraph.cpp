@@ -1,3 +1,31 @@
+
+//////////////////////////////////////////////////////////////////////////
+// Type conversion is proceded in Graph-Transition fashion	        //
+// 								        //
+// User-defined classes are nodes of the graph.			        //
+// 								        //
+// template class TTransition<Source,Dest> represents graph transitions //
+// Specialisations of TTransition implement and enable transition       //
+// between specific types - quite like adding new pair to map<T1,T2>    //
+// 								        //
+// template class Transitional<SourceT> is an interface-class	        //
+// it implements template method to<DestT>(), and to<Dest>(Args...)     //
+// which are used for type conversion.				        //
+// 								        //
+// To make it work for your just inherit from Transitional:	        //
+//   class MyClass : public Transitional<MyClass>		        //
+// and create TTransition specialisation:			        //
+//     template <> struct TTransition<MyClass,DestType>{	        //
+//     DestType transition(MyClass) const {...}			        //
+//     or even							        //
+//     DestType transition(MyClass,OtherArgs...) const {...}	        //
+//   };								        //
+// 								        //
+// To enable TTransition to access private fields and methods add:      //
+//   template<typename,typename>  friend class TTransition;	        //
+// to your class definition.					        //
+//////////////////////////////////////////////////////////////////////////
+    
 #include <type_traits>
 #include <iostream>
 
