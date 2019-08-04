@@ -4,7 +4,7 @@
 // Usage:									   //
 // class MyClass					                           //
 // {...}									   //
-// template <> struct TTransition<DestType>(MyClass,ArgT){...}			   //
+// template <> struct TTransition<DestType>(MyClass&&,ArgT){...}		   //
 // using _DestType = DestArgT<MyClass,ArgT>;                                       //
 // int main(){									   //
 //   MyClass x;									   //
@@ -21,9 +21,9 @@
 // 								        	   //
 // To enable TTransition to access private fields and methods add:      	   //
 //  template<typename DestT,typename SourceT,typename ArgT>                        //
-//  friend  DestT TTransition(SourceT s, ArgT arg);		        	   //
+//  friend  DestT TTransition(SourceT&& s, ArgT arg);		        	   //
 //  template<typename DestT,typename SourceT>		        	           //
-//  friend  DestT TTransition(SourceT s);		        	           //
+//  friend  DestT TTransition(SourceT&& s);		        	           //
 // to your class definition.							   //
 /////////////////////////////////////////////////////////////////////////////////////
 
@@ -31,14 +31,14 @@
 #include <iostream>
 
 template<typename DestT,typename SourceT,typename ArgT>
-inline DestT TTransition(SourceT s, ArgT arg)
+inline DestT TTransition(SourceT&& s, ArgT arg)
 {
   static_assert(!std::is_object<SourceT>::value,
 		"No TTransition<SourceT,DestT> defined");
 }
 
 template<typename DestT,typename SourceT>
-inline DestT TTransition(SourceT s)
+inline DestT TTransition(SourceT&& s)
 {
   static_assert(!std::is_object<SourceT>::value,
 		"No TTransition<SourceT,DestT> defined");
@@ -49,22 +49,28 @@ template<typename SourceT,
 	 std::enable_if_t<!std::is_void<typename DAT::ArgT>::value,int> = 0 >
 inline
 typename DAT::DestT
-transit (SourceT s,DAT arg)
-{ return TTransition<typename DAT::DestT>(s,arg.value); }
+transit (SourceT&& s,DAT arg)
+{ return TTransition<typename DAT::DestT>(static_cast<SourceT&&>(s),arg.value); }
 
 template<typename SourceT,
 	 typename DAT,
 	 std::enable_if_t<std::is_void<typename DAT::ArgT>::value,int> = 0>
 inline
 typename DAT::DestT
-transit (SourceT s,DAT arg)
-{ return TTransition<typename DAT::DestT>(s); }
+transit (SourceT&& s,DAT arg)
+{ return TTransition<typename DAT::DestT>(static_cast<SourceT&&>(s)); }
 
 template<typename SourceT, typename DAT>
 inline
-typename DAT::DestT
+std::enable_if_t<!std::is_reference<SourceT>::value,typename DAT::DestT>
 operator >> (SourceT s,DAT arg)
-{ return transit(s,arg); }
+{ return transit(std::move(s),arg); }
+
+template<typename SourceT, typename DAT>
+inline
+std::enable_if_t<std::is_reference<SourceT>::value,typename DAT::DestT>
+operator >> (const SourceT&& s,DAT arg)
+{ return transit(static_cast<SourceT&&>(s),arg); }
 
 template <typename T1,typename T2 = void>
 struct DestArgT
@@ -86,13 +92,13 @@ struct DestArgT<T1,void>
 class Querry
 {
   template<typename DestT,typename SourceT,typename ArgT>
-  friend  DestT TTransition(SourceT s, ArgT arg);
+  friend  DestT TTransition(SourceT&& s, ArgT arg);
   template<typename DestT,typename SourceT>
-  friend  DestT TTransition(SourceT s);
+  friend  DestT TTransition(SourceT&& s);
   std::string str;
 public:
   std::string getStr() const {return str;}
-  Querry(std::string arg):str(arg) {}
+  Querry(std::string arg):str(arg){}
   Querry() = default;
   Querry(const Querry& arg) = default;
   Querry(Querry&& arg) = default;
@@ -113,31 +119,42 @@ using _From = DestArgT<From,const char*>;
 using _Where = DestArgT<Where,const char*>;
 using _Done = DestArgT<Done>;
 
-struct Warden{
-    Warden(std::string arg){}
-  //  Warden(std::string arg){ std::cout<<"Move "<<arg<<'\n'; }
-};
-
+// template<>
+// inline Select TTransition<Select>(const QuerryStart& a,const char* what) { return (a.getStr() + "select ") + what; }
 
 template<>
-inline Select TTransition<Select>(QuerryStart a,const char* what) { Warden {"Select"}; return (a.str += "select ") += what; }
+inline Select TTransition<Select>(QuerryStart&& a,const char* what) {
+  (a.str += "select ") += what;
+  return std::move(a.str);
+}
+
+// template<>
+// inline From TTransition<From>(const Select& a,const char * what) {
+//   return  (a.getStr() + " from ") + what;
+// }
 
 template<>
-inline From TTransition<From>(Select a,const char * what) {
-  Warden {"From"};
+inline From TTransition<From>(Select&& a,const char * what) {
   (a.str += " from ") += what;
   return std::move(a.str);
 }
 
+// template<>
+// inline Where TTransition<Where>(const From& a,const char* what){
+//   return   (a.getStr() + " where ") + what;
+// }
+
 template<>
-inline Where TTransition<Where>(From a,const char* what){
-  Warden {"Where"};
+inline Where TTransition<Where>(From&& a,const char* what){
   (a.str += " where ") += what;
   return std::move(a.str);
 }
 
+// template<>
+// inline Done TTransition<Done>(const Where& a) { return a.getStr(); }
+
 template<>
-inline Done TTransition<Done>(Where a) { Warden {"Done"}; return a.str; }
+inline Done TTransition<Done>(Where&& a) { return std::move(a.str); }
 
 int main()
 {
